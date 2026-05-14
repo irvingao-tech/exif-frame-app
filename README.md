@@ -2,7 +2,7 @@
 
 为照片自动添加高级 EXIF 摄影卡片边框的桌面应用。
 
-风格参考：美术馆装帧、画廊展签、摄影档案卡、极简社交发布。
+风格参考：美术馆装帧、画廊展签、摄影档案卡、极简社交发布、复古明信片。
 
 ## 功能特性
 
@@ -13,6 +13,8 @@
 - ✅ 手动编辑 EXIF 显示内容
 - ✅ 实时预览
 - ✅ 边框参数可调（边距、颜色、圆角、阴影、字体）
+- ✅ 自动识别相机/镜头品牌 Logo（支持本地内置 Logo 资源）
+- ✅ GPS 经纬度可生成地图二维码（Apple Maps / Google Maps / 通用 geo）
 - ✅ 导出 JPG/PNG，支持多种分辨率
 - ✅ 支持中文路径
 
@@ -21,10 +23,10 @@
 | 模板 | 风格 |
 |------|------|
 | Museum White | 暖白背景，大留白，美术馆卡纸装帧 |
-| Gallery Black | 黑色背景，细白文字，电影感 |
-| Off-white Archive | 米白纸张，标题/地点/日期 + EXIF |
+| Gallery Black | 黑色展墙风格，细边框，浅色文字，电影感 |
+| Off-white Archive | 米色档案纸，档案编号，标题/地点/日期 + EXIF |
 | Minimal Border | 极简白边，小号文字，适合社交发布 |
-| Contact Sheet | 双行信息区，标题 + EXIF 详情 |
+| Vintage Postcard | 复古明信片底色，邮票框、邮戳和地址线 |
 
 ## 安装与运行
 
@@ -112,7 +114,7 @@ exif-frame-app/
 │   │   ├── gallery_black.py     # 模板 B
 │   │   ├── offwhite_archive.py  # 模板 C
 │   │   ├── minimal_border.py    # 模板 D
-│   │   └── contact_sheet.py     # 模板 E
+│   │   └── contact_sheet.py     # 模板 E（Vintage Postcard）
 │   └── ui/
 │       ├── main_window.py       # 主窗口（三栏布局）
 │       ├── image_list.py        # 左侧图片列表
@@ -144,6 +146,7 @@ class MyTemplate(BaseTemplate):
 - **PySide6** — Qt for Python GUI
 - **Pillow** — Image processing
 - **piexif** — EXIF reading
+- **qrcode** — GPS map QR code generation
 - **PyInstaller** — Windows .exe packaging
 
 ## License
