@@ -22,11 +22,11 @@
 
 | 模板 | 风格 |
 |------|------|
-| Museum White | 暖白背景，大留白，美术馆卡纸装帧 |
-| Gallery Black | 黑色展墙风格，细边框，浅色文字，电影感 |
-| Off-white Archive | 米色档案纸，档案编号，标题/地点/日期 + EXIF |
-| Minimal Border | 极简白边，小号文字，适合社交发布 |
-| Vintage Postcard | 复古明信片底色，邮票框、邮戳和地址线 |
+| Museum White | 暖白卡纸装裱，大留白与重底边，照片细压线，适合美术馆装帧感 |
+| Gallery Black | 黑色展墙/影院风格，双层细边框，浅色 EXIF 文字，适合暗调作品 |
+| Off-white Archive | 米色档案纸，顶部 ARCHIVE 编号、规则线、标题/地点/日期/EXIF 信息区 |
+| Minimal Border | 极简白边，轻边线与小号文字，适合社交平台发布 |
+| Vintage Postcard | 复古明信片纸张，照片纸框、邮票框、邮戳、邮政波浪线与地址横线 |
 
 ## 安装与运行
 
