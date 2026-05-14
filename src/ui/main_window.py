@@ -1,8 +1,4 @@
-"""
-Main Window
-Three-panel layout: Image List | Preview | Controls
-Coordinates all interactions between panels.
-"""
+"""Main Window — Three-panel Liquid Glass layout."""
 
 import os
 import logging
@@ -18,7 +14,7 @@ from PySide6.QtGui import QFont
 from src.ui.image_list import ImageListPanel, SUPPORTED_EXTENSIONS
 from src.ui.preview import PreviewPanel
 from src.ui.controls import ControlsPanel
-from src.core.image_processor import process_image, process_preview, RATIOS
+from src.core.image_processor import process_image, process_preview
 from src.core.exporter import export_image, generate_output_filename
 from src.templates.base import RenderParams
 
@@ -27,77 +23,263 @@ logger = logging.getLogger(__name__)
 
 class MainWindow(QMainWindow):
     """Main application window."""
-    
+
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('EXIF Frame Card — 摄影卡片边框')
+        self.setWindowTitle('EXIF Frame Card')
         self.setMinimumSize(1200, 750)
         self.resize(1400, 850)
         self.setAcceptDrops(True)
-        
-        # State
+
         self._current_filepath: Optional[str] = None
-        self._rendered_full: Optional[object] = None  # PIL Image at full resolution
+        self._rendered_full: Optional[object] = None
         self._exif_cache: dict[str, dict] = {}
         self._preview_cache: dict[tuple, object] = {}
         self._pending_filepath: Optional[str] = None
-        self._selection_timer = QTimer()
-        self._selection_timer.setSingleShot(True)
-        self._selection_timer.setInterval(120)
-        self._selection_timer.timeout.connect(self._apply_pending_selection)
-        self._update_timer = QTimer()
-        self._update_timer.setSingleShot(True)
-        self._update_timer.setInterval(120)  # 120ms debounce
-        self._update_timer.timeout.connect(self._update_preview)
-        
+
+        self._selection_timer = QTimer(singleShot=True, interval=120, timeout=self._apply_pending_selection)
+        self._update_timer = QTimer(singleShot=True, interval=120, timeout=self._update_preview)
+
         self._setup_ui()
         self._connect_signals()
-        
-        # Apply stylesheet
-        self._apply_style()
     
+    # ── UI Setup ────────────────────────────────────────────────────────
     def _setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        
+
         main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-        main_layout.setSpacing(4)
-        
-        # Splitter for resizable panels
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
         splitter = QSplitter(Qt.Horizontal)
-        
-        # Left: Image list
+        splitter.setHandleWidth(1)
+
         self.image_list = ImageListPanel()
-        splitter.addWidget(self.image_list)
-        
-        # Center: Preview
         self.preview = PreviewPanel()
-        splitter.addWidget(self.preview)
-        
-        # Right: Controls
         self.controls = ControlsPanel()
+
+        splitter.addWidget(self.image_list)
+        splitter.addWidget(self.preview)
         splitter.addWidget(self.controls)
-        
-        # Set initial sizes
         splitter.setSizes([220, 700, 320])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
-        
+
         main_layout.addWidget(splitter)
-        
-        # Status bar
+
         self.status_bar = QStatusBar()
-        self.status_bar.setFont(QFont('Segoe UI', 10))
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage('就绪 — 拖入图片或点击导入按钮')
-    
+
+    # ── Signal wiring ──────────────────────────────────────────────────
     def _connect_signals(self):
-        # Image list signals
         self.image_list.image_selected.connect(self._on_image_selected)
-        
-        # Controls signals — debounced preview update
+        self.controls.params_changed.connect(self._schedule_preview_update)
+        self.preview.export_requested.connect(self._on_export)
+
+    def _on_image_selected(self, filepath: str):
+        self._pending_filepath = filepath
+        self._selection_timer.start()
+
+    def _apply_pending_selection(self):
+        filepath = self._pending_filepath
+        if not filepath or filepath == self._current_filepath:
+            return
+        self._current_filepath = filepath
+        self.status_bar.showMessage(f'已选择: {os.path.basename(filepath)}')
+        exif_data = self._get_exif(filepath)
+        self.controls.set_all_exif_fields(exif_data, overwrite=True)
+        self._schedule_preview_update()
+
+    def _get_exif(self, filepath: str) -> dict:
+        if filepath not in self._exif_cache:
+            from src.core.exif_reader import read_exif
+            self._exif_cache[filepath] = read_exif(filepath)
+        return self._exif_cache[filepath]
+
+    # ── Preview ────────────────────────────────────────────────────────
+    def _preview_cache_key(self, filepath: str, params: RenderParams) -> tuple:
+        return (
+            filepath,
+            self.controls.get_template_key(),
+            self.controls.get_ratio_key(),
+            params.ratio,
+            params.bg_color,
+            params.margin_top, params.margin_side, params.margin_bottom,
+            params.image_corner_radius, params.image_shadow,
+            params.font_size, params.font_color, params.font_bold,
+            params.text_align,
+            params.logo_enabled, params.logo_size, params.logo_position,
+            params.qr_enabled, params.qr_size, params.qr_position,
+            params.map_provider,
+            params.title, params.location, params.camera, params.lens,
+            params.focal_length, params.aperture, params.shutter_speed,
+            params.iso, params.date, params.note,
+        )
+
+    def _remember_preview(self, key: tuple, preview_img):
+        self._preview_cache[key] = preview_img
+        if len(self._preview_cache) > 24:
+            self._preview_cache.pop(next(iter(self._preview_cache)), None)
+
+    def _schedule_preview_update(self):
+        self._update_timer.start()
+
+    def _update_preview(self):
+        if not self._current_filepath:
+            return
+        try:
+            params = self._build_render_params()
+            cache_key = self._preview_cache_key(self._current_filepath, params)
+            cached = self._preview_cache.get(cache_key)
+            if cached is not None:
+                self.preview.set_preview(cached)
+                self.status_bar.showMessage(f'预览已更新 — {os.path.basename(self._current_filepath)}')
+                return
+
+            preview_img = process_preview(
+                self._current_filepath,
+                template_key=self.controls.get_template_key(),
+                ratio_key=self.controls.get_ratio_key(),
+                render_params=params,
+                preview_long_edge=800,
+                exif_data=self._get_exif(self._current_filepath),
+            )
+            self._remember_preview(cache_key, preview_img)
+            self.preview.set_preview(preview_img)
+            self.status_bar.showMessage(f'预览已更新 — {os.path.basename(self._current_filepath)}')
+        except Exception as e:
+            logger.error(f'Preview error: {e}')
+            self.status_bar.showMessage(f'预览错误: {e}')
+
+    # ── Render params ──────────────────────────────────────────────────
+    def _build_render_params(self) -> RenderParams:
+        ratio_key = self.controls.get_ratio_key()
+        ratio_map = {
+            'Original': None,
+            '1:1': (1, 1), '4:5': (4, 5), '3:4': (3, 4),
+            '16:9': (16, 9), '9:16': (9, 16),
+            'A4 Portrait': (210, 297), 'A4 Landscape': (297, 210),
+        }
+        ratio = ratio_map.get(ratio_key, (4, 5))
+        if ratio is None and self._current_filepath:
+            from PIL import Image
+            from math import gcd
+            try:
+                img = Image.open(self._current_filepath)
+                g = gcd(img.width, img.height)
+                ratio = (img.width // g, img.height // g)
+            except Exception:
+                ratio = (3, 2)
+
+        return RenderParams(
+            ratio=ratio or (3, 2),
+            bg_color=self.controls.get_bg_color(),
+            margin_top=self.controls.get_margin('margin_top'),
+            margin_side=self.controls.get_margin('margin_side'),
+            margin_bottom=self.controls.get_margin('margin_bottom'),
+            image_corner_radius=self.controls.get_margin('image_corner_radius'),
+            image_shadow=self.controls.get_shadow(),
+            font_size=self.controls.get_font_size(),
+            font_color=self.controls.get_font_color(),
+            font_bold=self.controls.get_font_bold(),
+            text_align=self.controls.get_text_align(),
+            logo_enabled=self.controls.get_logo_enabled(),
+            logo_size=self.controls.get_logo_size(),
+            logo_position=self.controls.get_logo_position(),
+            qr_enabled=self.controls.get_qr_enabled(),
+            qr_size=self.controls.get_qr_size(),
+            qr_position=self.controls.get_qr_position(),
+            map_provider=self.controls.get_map_provider(),
+            title=self.controls.get_exif_field('title'),
+            location=self.controls.get_exif_field('location'),
+            camera=self.controls.get_exif_field('camera'),
+            lens=self.controls.get_exif_field('lens'),
+            focal_length=self.controls.get_exif_field('focal_length'),
+            aperture=self.controls.get_exif_field('aperture'),
+            shutter_speed=self.controls.get_exif_field('shutter_speed'),
+            iso=self.controls.get_exif_field('iso'),
+            date=self.controls.get_exif_field('date'),
+            note=self.controls.get_exif_field('note'),
+        )
+
+    # ── Export ─────────────────────────────────────────────────────────
+    def _on_export(self):
+        if not self._current_filepath:
+            QMessageBox.warning(self, '提示', '请先导入图片')
+            return
+
+        export_format = self.controls.get_export_format()
+        ext_filter = 'JPEG (*.jpg);;PNG (*.png)' if export_format == 'JPEG' else 'PNG (*.png);;JPEG (*.jpg)'
+        default_name = generate_output_filename(
+            self._current_filepath, '_framed',
+            '.jpg' if export_format == 'JPEG' else '.png'
+        )
+        output_path, _ = QFileDialog.getSaveFileName(self, '导出图片', default_name, ext_filter)
+        if not output_path:
+            return
+
+        ext = os.path.splitext(output_path)[1].lower()
+        fmt = 'JPEG' if ext in ('.jpg', '.jpeg') else 'PNG'
+        target_long_edge = self.controls.get_export_resolution()
+
+        try:
+            self.status_bar.showMessage('正在渲染...')
+            QApplication.processEvents()
+
+            if target_long_edge <= 0:
+                from PIL import Image as PILImage
+                try:
+                    with PILImage.open(self._current_filepath) as src_img:
+                        target_long_edge = max(src_img.width, src_img.height)
+                except Exception:
+                    target_long_edge = 4096
+
+            params = self._build_render_params()
+            result = process_image(
+                self._current_filepath,
+                template_key=self.controls.get_template_key(),
+                ratio_key=self.controls.get_ratio_key(),
+                target_long_edge=target_long_edge,
+                render_params=params,
+                exif_data=self._get_exif(self._current_filepath),
+            )
+            if result is None:
+                QMessageBox.critical(self, '错误', '渲染失败')
+                return
+
+            rendered_img, merged, exif_src = result
+            success = export_image(rendered_img, output_path, format=fmt, quality=95, target_long_edge=0)
+            if success:
+                self.status_bar.showMessage(f'已导出: {os.path.basename(output_path)}')
+                QMessageBox.information(
+                    self, '导出成功',
+                    f'图片已保存到:\n{output_path}\n\n尺寸: {rendered_img.size[0]}x{rendered_img.size[1]}'
+                )
+            else:
+                QMessageBox.critical(self, '错误', '导出失败')
+        except Exception as e:
+            logger.error(f'Export error: {e}')
+            QMessageBox.critical(self, '导出错误', str(e))
+
+    # ── Drag & Drop ────────────────────────────────────────────────────
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        paths = []
+        for url in event.mimeData().urls():
+            p = url.toLocalFile()
+            ext = os.path.splitext(p)[1].lower()
+            if ext in SUPPORTED_EXTENSIONS:
+                paths.append(p)
+        if paths:
+            self.image_list.add_files(paths)
+            self.image_list.select_last()
+            event.acceptProposedAction()
         self.controls.params_changed.connect(self._schedule_preview_update)
         
         # Preview export button
