@@ -4,6 +4,7 @@ Warm paper background, framed image, postcard marks and stamped corner.
 """
 
 import math
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
@@ -13,6 +14,9 @@ from .base import (
     draw_shadow, load_font, minimum_safe_margins,
     template_colors, mix_color,
 )
+
+
+STAMP_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'stamps' / 'postcard_stamp.png'
 
 
 class ContactSheetTemplate(BaseTemplate):
@@ -28,7 +32,16 @@ class ContactSheetTemplate(BaseTemplate):
 
         bg_color, font_color = template_colors(params, (232, 218, 190), (74, 58, 42))
 
-        m_top = int(max(params.margin_top, 92) * canvas_h / 2048)
+        stamp_w = max(72, canvas_w // 8)
+        stamp_h = stamp_w
+        header_size = max(8, int(params.postcard_header_size))
+        header_font = load_font(header_size, params.postcard_header_bold)
+        header_text = (params.postcard_header or 'CARTE POSTALE').strip()
+        header_bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), header_text, font=header_font)
+        header_h = header_bbox[3] - header_bbox[1]
+        top_safe = max(92, int((header_h + 46) * 2048 / canvas_h))
+
+        m_top = int(max(params.margin_top, top_safe) * canvas_h / 2048)
         m_side = int(max(params.margin_side, 96) * canvas_w / 2048)
         m_bottom = int(max(params.margin_bottom, 260) * canvas_h / 2048)
         min_top, min_bottom = minimum_safe_margins(canvas_w, canvas_h, params, 3)
@@ -49,16 +62,6 @@ class ContactSheetTemplate(BaseTemplate):
         paper_edge = mix_color(bg_color, (94, 62, 32), 0.22)
         paper_faint = mix_color(bg_color, (94, 62, 32), 0.10)
         inset = max(10, canvas_w // 55)
-        draw.rectangle(
-            (inset, inset, canvas_w - inset, canvas_h - inset),
-            outline=paper_edge,
-            width=max(1, canvas_w // 900),
-        )
-        draw.rectangle(
-            (inset + 5, inset + 5, canvas_w - inset - 5, canvas_h - inset - 5),
-            outline=paper_faint,
-            width=1,
-        )
 
         img_x = (canvas_w - new_w) // 2
         img_y = m_top
@@ -92,35 +95,20 @@ class ContactSheetTemplate(BaseTemplate):
             width=1,
         )
 
-        stamp_w = max(54, canvas_w // 8)
-        stamp_h = int(stamp_w * 0.68)
         stamp_x = canvas_w - inset - stamp_w - max(10, canvas_w // 70)
-        stamp_y = inset + max(8, canvas_h // 90)
-        self._draw_stamp_frame(draw, stamp_x, stamp_y, stamp_w, stamp_h, paper_edge)
-        stamp_font = load_font(max(9, int(params.font_size * 0.55)), True)
-        draw.text(
-            (stamp_x + stamp_w * 0.18, stamp_y + stamp_h * 0.28),
-            'AIR\nMAIL',
-            fill=paper_edge,
-            font=stamp_font,
-            spacing=2,
-        )
+        stamp_y = max(inset + max(8, canvas_h // 90), img_y - int(stamp_h * 0.38))
+        self._draw_postmark_asset(canvas, stamp_x, stamp_y, stamp_w, stamp_h)
+        draw = ImageDraw.Draw(canvas)
 
-        postmark_cx = stamp_x - max(8, stamp_w // 8)
-        postmark_cy = stamp_y + stamp_h + max(10, canvas_h // 70)
-        postmark_r = max(18, canvas_w // 28)
-        self._draw_postmark(
-            draw, postmark_cx, postmark_cy, postmark_r,
-            paper_edge, merged.get('date') or 'POSTCARD',
-        )
-
-        header_font = load_font(max(10, int(params.font_size * 0.62)), True)
-        draw.text(
-            (m_side, max(inset + 12, m_top // 2)),
-            'CARTE POSTALE',
-            fill=paper_edge,
-            font=header_font,
-        )
+        if header_text:
+            header_y = max(inset + 10, stamp_y + stamp_h - header_h)
+            header_y = min(header_y, img_y - header_h - max(8, canvas_h // 90))
+            self._draw_fitted_text(
+                draw, header_text, m_side, header_y,
+                max(1, stamp_x - m_side - max(12, canvas_w // 80)),
+                header_size,
+                params.postcard_header_color, params.postcard_header_bold, 'left', 8,
+            )
 
         image_box = (img_x, img_y, img_x + new_w, img_y + new_h)
         original_font_color = params.font_color
@@ -187,18 +175,6 @@ class ContactSheetTemplate(BaseTemplate):
         params.font_color = original_font_color
         return canvas
 
-    def _draw_stamp_frame(self, draw, x: int, y: int, w: int, h: int, color):
-        """Draw a perforated stamp-style rectangle."""
-        r = max(2, w // 24)
-        step = max(6, w // 12)
-        draw.rectangle((x, y, x + w, y + h), outline=color, width=2)
-        for px in range(x + step // 2, x + w, step):
-            draw.ellipse((px - r, y - r, px + r, y + r), fill=color)
-            draw.ellipse((px - r, y + h - r, px + r, y + h + r), fill=color)
-        for py in range(y + step // 2, y + h, step):
-            draw.ellipse((x - r, py - r, x + r, py + r), fill=color)
-            draw.ellipse((x + w - r, py - r, x + w + r, py + r), fill=color)
-
     def _draw_postmark(self, draw, cx: int, cy: int, r: int, color, label: str):
         """Draw a circular postmark with cancellation waves."""
         draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=color, width=2)
@@ -225,3 +201,25 @@ class ContactSheetTemplate(BaseTemplate):
                 points.append((px, py))
             if len(points) > 1:
                 draw.line(points, fill=color, width=1)
+
+    def _draw_postmark_asset(self, canvas: Image.Image, x: int, y: int, w: int, h: int) -> bool:
+        """Paste the built-in transparent postmark artwork."""
+        if not STAMP_ASSET.exists():
+            return False
+        try:
+            stamp = Image.open(STAMP_ASSET).convert('RGBA')
+        except Exception:
+            return False
+
+        scale = min(w / max(stamp.width, 1), h / max(stamp.height, 1))
+        stamp = stamp.resize(
+            (max(1, int(stamp.width * scale)), max(1, int(stamp.height * scale))),
+            Image.LANCZOS,
+        )
+        alpha = stamp.getchannel('A').point(lambda a: int(a * 0.86))
+        stamp.putalpha(alpha)
+
+        px = x + (w - stamp.width) // 2
+        py = y + (h - stamp.height) // 2
+        canvas.paste(stamp, (px, py), stamp)
+        return True

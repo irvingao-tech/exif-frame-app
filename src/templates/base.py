@@ -57,6 +57,10 @@ class RenderParams:
     iso: str = ''
     date: str = ''
     note: str = ''
+    postcard_header: str = 'CARTE POSTALE'
+    postcard_header_size: int = 18
+    postcard_header_color: Tuple[int, int, int] = (74, 58, 42)
+    postcard_header_bold: bool = True
 
 
 @dataclass
@@ -294,6 +298,23 @@ def mix_color(a: Tuple[int, int, int], b: Tuple[int, int, int], amount: float) -
     return tuple(int(a[i] * (1 - amount) + b[i] * amount) for i in range(3))
 
 
+def relative_luminance(color: Tuple[int, int, int]) -> float:
+    """Return perceived luminance for an RGB color."""
+    r, g, b = color
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def readable_mono_color(bg_color: Tuple[int, int, int], preferred: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    """Choose a readable mono artwork color for the current canvas background."""
+    bg_luma = relative_luminance(bg_color)
+    preferred_luma = relative_luminance(preferred)
+    if bg_luma < 96 and preferred_luma < 150:
+        return (242, 242, 247)
+    if bg_luma > 208 and preferred_luma > 160:
+        return (32, 32, 36)
+    return preferred
+
+
 def make_map_url(lat: float, lon: float, provider: str = 'apple') -> str:
     """Build a map URL from decimal coordinates."""
     provider = (provider or 'apple').lower()
@@ -468,6 +489,9 @@ class BaseTemplate(ABC):
             return None
 
         canvas_w, canvas_h = canvas.size
+        sampled_bg = canvas.getpixel((0, 0))
+        if len(sampled_bg) > 3:
+            sampled_bg = sampled_bg[:3]
         scale_base = max(canvas_w, canvas_h) / 2048
         target_h = max(18, int(params.logo_size * scale_base))
         target_h = min(target_h, max(18, int(max_height)))
@@ -488,7 +512,8 @@ class BaseTemplate(ABC):
                     ),
                     Image.LANCZOS,
                 )
-                logo_img = tint_monochrome_logo(logo_img, params.font_color)
+                logo_color = readable_mono_color(sampled_bg, params.font_color)
+                logo_img = tint_monochrome_logo(logo_img, logo_color)
                 return {
                     'brand': brand,
                     'image': logo_img,
@@ -498,6 +523,7 @@ class BaseTemplate(ABC):
             except Exception:
                 pass
 
+        logo_color = readable_mono_color(sampled_bg, params.font_color)
         draw = ImageDraw.Draw(canvas)
         fitted, font = self._fit_text(draw, brand['label'], max_width, target_h, True, 10)
         bbox = draw.textbbox((0, 0), fitted, font=font)
@@ -505,6 +531,7 @@ class BaseTemplate(ABC):
             'brand': brand,
             'text': fitted,
             'font': font,
+            'fill': logo_color,
             'width': bbox[2] - bbox[0],
             'height': bbox[3] - bbox[1],
         }
@@ -721,5 +748,5 @@ class BaseTemplate(ABC):
             return logo
 
         draw = ImageDraw.Draw(canvas)
-        draw.text((x, y), logo['text'], fill=params.font_color, font=logo['font'])
+        draw.text((x, y), logo['text'], fill=logo.get('fill', params.font_color), font=logo['font'])
         return logo

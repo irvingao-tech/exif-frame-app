@@ -30,7 +30,12 @@ BRANDS = [
     {
         'key': 'sony',
         'label': 'Sony',
-        'aliases': ['sony', 'ilce', 'alpha', 'fe ', 'e '],
+        'aliases': ['sony', 'ilce', 'alpha', 'sel', 'fe ', 'e-mount'],
+    },
+    {
+        'key': 'apple',
+        'label': 'Apple',
+        'aliases': ['apple', 'iphone', 'ipad'],
     },
     {
         'key': 'fujifilm',

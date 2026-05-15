@@ -45,6 +45,10 @@ def load_image(filepath: str, max_long_edge: int = 0) -> Optional[Image.Image]:
     try:
         img = Image.open(filepath)
         if max_long_edge > 0:
+            try:
+                img.draft('RGB', (max_long_edge, max_long_edge))
+            except Exception:
+                pass
             img.thumbnail((max_long_edge, max_long_edge), Image.LANCZOS)
             img = img.copy()
         # Convert to RGB (handle RGBA, P, etc.)
@@ -187,6 +191,7 @@ def process_preview(
         iso=params.iso,
         date=params.date,
         note=params.note,
+        postcard_header=params.postcard_header,
     )
     
     result = process_image(
@@ -196,7 +201,7 @@ def process_preview(
         target_long_edge=preview_long_edge,
         render_params=preview_params,
         exif_data=exif_data,
-        source_max_long_edge=preview_long_edge * 2,
+        source_max_long_edge=max(preview_long_edge, int(preview_long_edge * 1.25)),
     )
     
     if result:
