@@ -72,19 +72,6 @@ class MuseumWhiteTemplate(BaseTemplate):
             canvas.paste(img_resized, (img_x, img_y))
         
         draw = ImageDraw.Draw(canvas)
-        mat_line = mix_color(bg_color, (0, 0, 0), 0.12)
-        highlight = mix_color(bg_color, (255, 255, 255), 0.55)
-        draw.rectangle(
-            (img_x - 1, img_y - 1, img_x + new_w, img_y + new_h),
-            outline=mat_line,
-            width=max(1, canvas_w // 900),
-        )
-        draw.line(
-            (img_x - 2, img_y - 2, img_x + new_w + 1, img_y - 2),
-            fill=highlight,
-            width=max(1, canvas_w // 1100),
-        )
-        
         # Draw EXIF text at bottom
         exif_line = self._build_exif_line(merged)
         image_box = (img_x, img_y, img_x + new_w, img_y + new_h)

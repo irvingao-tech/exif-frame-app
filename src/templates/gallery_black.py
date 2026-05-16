@@ -67,12 +67,6 @@ class GalleryBlackTemplate(BaseTemplate):
             canvas.paste(img_resized, (img_x, img_y))
         
         draw = ImageDraw.Draw(canvas)
-        keyline = mix_color(bg_color, (255, 255, 255), 0.26)
-        draw.rectangle(
-            (img_x - 6, img_y - 6, img_x + new_w + 5, img_y + new_h + 5),
-            outline=keyline,
-            width=max(1, canvas_w // 700),
-        )
         draw.rectangle(
             (max(8, m_side // 2), max(8, m_top // 2),
              canvas_w - max(8, m_side // 2), canvas_h - max(8, m_top // 2)),

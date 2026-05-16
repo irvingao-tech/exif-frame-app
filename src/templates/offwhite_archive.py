@@ -65,13 +65,7 @@ class OffWhiteArchiveTemplate(BaseTemplate):
             canvas.paste(img_resized, (img_x, img_y))
         
         draw = ImageDraw.Draw(canvas)
-        paper_line = mix_color(bg_color, (0, 0, 0), 0.18)
         faint_line = mix_color(bg_color, (0, 0, 0), 0.08)
-        draw.rectangle(
-            (img_x - 1, img_y - 1, img_x + new_w, img_y + new_h),
-            outline=paper_line,
-            width=max(1, canvas_w // 1000),
-        )
         label_top = img_y + new_h + int(m_bottom * 0.10)
         draw.line(
             (m_side, label_top - max(6, canvas_h // 160), canvas_w - m_side, label_top - max(6, canvas_h // 160)),

@@ -32,6 +32,9 @@ class RenderParams:
     # Image styling
     image_corner_radius: int = 0
     image_shadow: bool = False
+    image_zoom: int = 100
+    image_offset_x: int = 0
+    image_offset_y: int = 0
     # Text styling
     font_size: int = 18
     font_color: Tuple[int, int, int] = (80, 80, 80)

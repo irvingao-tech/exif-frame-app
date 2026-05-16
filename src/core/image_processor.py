@@ -15,8 +15,10 @@ from src.templates.gallery_black import GalleryBlackTemplate
 from src.templates.offwhite_archive import OffWhiteArchiveTemplate
 from src.templates.minimal_border import MinimalBorderTemplate
 from src.templates.contact_sheet import ContactSheetTemplate
+from src.templates.color_reversal_film import ColorReversalFilmTemplate
 
 logger = logging.getLogger(__name__)
+PREVIEW_LAYOUT_LONG_EDGE = 2048
 
 # Template registry — easy to extend
 TEMPLATES = {
@@ -25,6 +27,7 @@ TEMPLATES = {
     'offwhite_archive': OffWhiteArchiveTemplate(),
     'minimal_border': MinimalBorderTemplate(),
     'contact_sheet': ContactSheetTemplate(),
+    'color_reversal_film': ColorReversalFilmTemplate(),
 }
 
 # Aspect ratio presets
@@ -158,11 +161,11 @@ def process_preview(
     else:
         params = render_params
     
-    # Use a smaller target for preview
-    # But keep the ratio and margins proportional
+    # Keep layout stable across preview quality modes. Quality only changes the
+    # final preview raster size; templates always compose at the same base size.
     preview_params = RenderParams(
         ratio=params.ratio,
-        target_long_edge=preview_long_edge,
+        target_long_edge=PREVIEW_LAYOUT_LONG_EDGE,
         bg_color=params.bg_color,
         border_width=params.border_width,
         margin_top=params.margin_top,
@@ -170,6 +173,9 @@ def process_preview(
         margin_bottom=params.margin_bottom,
         image_corner_radius=params.image_corner_radius,
         image_shadow=params.image_shadow,
+        image_zoom=params.image_zoom,
+        image_offset_x=params.image_offset_x,
+        image_offset_y=params.image_offset_y,
         font_size=params.font_size,
         font_color=params.font_color,
         font_bold=params.font_bold,
@@ -192,18 +198,32 @@ def process_preview(
         date=params.date,
         note=params.note,
         postcard_header=params.postcard_header,
+        postcard_header_size=params.postcard_header_size,
+        postcard_header_color=params.postcard_header_color,
+        postcard_header_bold=params.postcard_header_bold,
     )
     
     result = process_image(
         filepath,
         template_key=template_key,
         ratio_key=ratio_key,
-        target_long_edge=preview_long_edge,
+        target_long_edge=PREVIEW_LAYOUT_LONG_EDGE,
         render_params=preview_params,
         exif_data=exif_data,
-        source_max_long_edge=max(preview_long_edge, int(preview_long_edge * 1.25)),
+        source_max_long_edge=max(PREVIEW_LAYOUT_LONG_EDGE, preview_long_edge),
     )
     
     if result:
-        return result[0]
+        preview_img = result[0]
+        current_long_edge = max(preview_img.size)
+        if preview_long_edge > 0 and current_long_edge != preview_long_edge:
+            scale = preview_long_edge / current_long_edge
+            preview_img = preview_img.resize(
+                (
+                    max(1, int(preview_img.width * scale)),
+                    max(1, int(preview_img.height * scale)),
+                ),
+                Image.LANCZOS,
+            )
+        return preview_img
     return None

@@ -6,7 +6,7 @@ Warm paper background, framed image, postcard marks and stamped corner.
 import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from .base import (
     BaseTemplate, RenderParams, ExifSource,
@@ -17,6 +17,7 @@ from .base import (
 
 
 STAMP_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'stamps' / 'postcard_stamp.png'
+HEADER_FONT_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'fonts' / 'PlaywriteGBJGuides-Regular.ttf'
 
 
 class ContactSheetTemplate(BaseTemplate):
@@ -35,9 +36,12 @@ class ContactSheetTemplate(BaseTemplate):
         stamp_w = max(72, canvas_w // 8)
         stamp_h = stamp_w
         header_size = max(8, int(params.postcard_header_size))
-        header_font = load_font(header_size, params.postcard_header_bold)
+        header_font = self._load_header_font(header_size)
         header_text = (params.postcard_header or 'CARTE POSTALE').strip()
-        header_bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), header_text, font=header_font)
+        header_bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
+            (0, 0), header_text, font=header_font,
+            stroke_width=1 if params.postcard_header_bold else 0,
+        )
         header_h = header_bbox[3] - header_bbox[1]
         top_safe = max(92, int((header_h + 46) * 2048 / canvas_h))
 
@@ -83,18 +87,6 @@ class ContactSheetTemplate(BaseTemplate):
         else:
             canvas.paste(img_resized, (img_x, img_y))
 
-        photo_frame = mix_color(bg_color, (92, 55, 26), 0.28)
-        draw.rectangle(
-            (img_x - 5, img_y - 5, img_x + new_w + 4, img_y + new_h + 4),
-            outline=photo_frame,
-            width=max(1, canvas_w // 720),
-        )
-        draw.rectangle(
-            (img_x - 10, img_y - 10, img_x + new_w + 9, img_y + new_h + 9),
-            outline=mix_color(bg_color, (255, 255, 255), 0.30),
-            width=1,
-        )
-
         stamp_x = canvas_w - inset - stamp_w - max(10, canvas_w // 70)
         stamp_y = max(inset + max(8, canvas_h // 90), img_y - int(stamp_h * 0.38))
         self._draw_postmark_asset(canvas, stamp_x, stamp_y, stamp_w, stamp_h)
@@ -103,7 +95,7 @@ class ContactSheetTemplate(BaseTemplate):
         if header_text:
             header_y = max(inset + 10, stamp_y + stamp_h - header_h)
             header_y = min(header_y, img_y - header_h - max(8, canvas_h // 90))
-            self._draw_fitted_text(
+            self._draw_postcard_header_text(
                 draw, header_text, m_side, header_y,
                 max(1, stamp_x - m_side - max(12, canvas_w // 80)),
                 header_size,
@@ -223,3 +215,71 @@ class ContactSheetTemplate(BaseTemplate):
         py = y + (h - stamp.height) // 2
         canvas.paste(stamp, (px, py), stamp)
         return True
+
+    def _load_header_font(self, size: int):
+        if HEADER_FONT_ASSET.exists():
+            try:
+                return ImageFont.truetype(str(HEADER_FONT_ASSET), size)
+            except (OSError, IOError):
+                pass
+        return load_font(size, False)
+
+    def _fit_header_text(
+        self,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        max_width: int,
+        size: int,
+        bold: bool,
+        min_size: int = 8,
+    ):
+        stroke_width = 1 if bold else 0
+        max_width = max(1, int(max_width))
+        for font_size in range(max(size, min_size), min_size - 1, -1):
+            font = self._load_header_font(font_size)
+            bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+            if bbox[2] - bbox[0] <= max_width:
+                return text, font
+
+        font = self._load_header_font(min_size)
+        ellipsis = '...'
+        fitted = text
+        while fitted:
+            candidate = fitted.rstrip() + ellipsis
+            bbox = draw.textbbox((0, 0), candidate, font=font, stroke_width=stroke_width)
+            if bbox[2] - bbox[0] <= max_width:
+                return candidate, font
+            fitted = fitted[:-1]
+        return ellipsis, font
+
+    def _draw_postcard_header_text(
+        self,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        x: int,
+        y: int,
+        max_width: int,
+        size: int,
+        fill,
+        bold: bool,
+        align: str = 'left',
+        min_size: int = 8,
+    ) -> int:
+        fitted, font = self._fit_header_text(draw, text, max_width, size, bold, min_size)
+        if not fitted:
+            return 0
+        stroke_width = 1 if bold else 0
+        bbox = draw.textbbox((0, 0), fitted, font=font, stroke_width=stroke_width)
+        text_w = bbox[2] - bbox[0]
+        if align == 'center':
+            tx = x + max(0, (max_width - text_w) // 2)
+        elif align == 'right':
+            tx = x + max(0, max_width - text_w)
+        else:
+            tx = x
+        bbox = draw.textbbox((0, 0), fitted, font=font, stroke_width=stroke_width)
+        draw.text(
+            (tx, y - min(0, bbox[1])), fitted, fill=fill, font=font,
+            stroke_width=stroke_width, stroke_fill=fill,
+        )
+        return bbox[3] - bbox[1]

@@ -63,13 +63,7 @@ class MinimalBorderTemplate(BaseTemplate):
             canvas.paste(img_resized, (img_x, img_y))
         
         draw = ImageDraw.Draw(canvas)
-        hairline = mix_color(bg_color, (0, 0, 0), 0.08)
-        draw.rectangle(
-            (img_x, img_y, img_x + new_w - 1, img_y + new_h - 1),
-            outline=hairline,
-            width=1,
-        )
-        
+
         # Tiny, delicate EXIF text
         exif_line = self._build_exif_line(merged)
         image_box = (img_x, img_y, img_x + new_w, img_y + new_h)

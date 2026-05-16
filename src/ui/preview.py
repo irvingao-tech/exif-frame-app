@@ -2,10 +2,10 @@
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QHBoxLayout,
-    QSizePolicy,
+    QSizePolicy, QProgressBar,
 )
-from PySide6.QtCore import Qt, Signal, QEvent, QPoint
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, Signal, QEvent, QPoint, QTimer, QSize
+from PySide6.QtGui import QPixmap, QImage, QImageReader
 
 from PIL import Image
 
@@ -36,6 +36,18 @@ class PreviewPanel(QWidget):
         header.addWidget(title)
         header.addStretch()
 
+        self.export_status = QLabel('')
+        self.export_status.setObjectName('ExportStatus')
+        header.addWidget(self.export_status)
+
+        self.export_progress = QProgressBar()
+        self.export_progress.setObjectName('ExportProgress')
+        self.export_progress.setRange(0, 0)
+        self.export_progress.setFixedSize(110, 6)
+        self.export_progress.setTextVisible(False)
+        self.export_progress.hide()
+        header.addWidget(self.export_progress)
+
         self.export_btn = QPushButton('Export')
         self.export_btn.setObjectName('primaryButton')
         self.export_btn.clicked.connect(self.export_requested.emit)
@@ -64,6 +76,15 @@ class PreviewPanel(QWidget):
 
         self.scroll.setWidget(self.image_label)
         layout.addWidget(self.scroll, 1)
+
+    def set_exporting(self, active: bool, message: str = ''):
+        self.export_btn.setEnabled(not active)
+        self.export_status.setText(message)
+        self.export_progress.setVisible(active)
+
+    def show_export_done(self, message: str):
+        self.set_exporting(False, message)
+        QTimer.singleShot(2600, lambda: self.export_status.setText(''))
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Wheel and self._current_preview is not None:
@@ -100,6 +121,33 @@ class PreviewPanel(QWidget):
                           rgb.width, rgb.height,
                           rgb.width * 3, QImage.Format_RGB888)
         self._source_pixmap = QPixmap.fromImage(qimg.copy())
+        self._render_preview()
+
+    def set_quick_preview(self, filepath: str):
+        """Show a fast source-photo preview while the styled preview renders."""
+        reader = QImageReader(filepath)
+        reader.setAutoTransform(True)
+        original = reader.size()
+        viewport = self.scroll.viewport().size()
+        target_w = max(640, viewport.width() * 2)
+        target_h = max(640, viewport.height() * 2)
+        if original.isValid() and original.width() > 0 and original.height() > 0:
+            scale = min(target_w / original.width(), target_h / original.height(), 1.0)
+            reader.setScaledSize(QSize(
+                max(1, int(original.width() * scale)),
+                max(1, int(original.height() * scale)),
+            ))
+        image = reader.read()
+        if image.isNull():
+            self.image_label.setText('Rendering preview...')
+            return
+
+        self._zoom_factor = 1.0
+        self._dragging = False
+        self._source_pixmap = QPixmap.fromImage(image)
+        self._current_preview = Image.new(
+            'RGB', (self._source_pixmap.width(), self._source_pixmap.height())
+        )
         self._render_preview()
 
     def reset_view(self):

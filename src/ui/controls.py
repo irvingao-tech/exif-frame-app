@@ -99,6 +99,7 @@ class ControlsPanel(QWidget):
                 ('offwhite_archive', 'Off-white Archive'),
                 ('minimal_border', 'Minimal Border'),
                 ('contact_sheet', 'Vintage Postcard'),
+                ('color_reversal_film', 'Color Reversal Film'),
             ], label='Style'),
             self._combo('ratio', [
                 ('Original', 'Original'), ('1:1', 'Square 1:1'),
@@ -127,8 +128,6 @@ class ControlsPanel(QWidget):
             ('shutter_speed', 'Shutter', '1/250s'),
             ('iso', 'ISO', 'ISO 100'),
             ('date', 'Date', '2026-05-15'),
-            ('note', 'Note', 'Optional note'),
-            ('postcard_header', 'Postcard Header', 'CARTE POSTALE'),
         ]:
             edit = QLineEdit()
             edit.setPlaceholderText(placeholder)
@@ -143,6 +142,9 @@ class ControlsPanel(QWidget):
             self._slider('margin_side', 'Side Margin', 0, 300, 80),
             self._slider('margin_bottom', 'Bottom Margin', 0, 400, 120),
             self._slider('image_corner_radius', 'Image Radius', 0, 100, 0),
+            self._slider('image_zoom', 'Photo Zoom', 100, 220, 100),
+            self._slider('image_offset_x', 'Photo X', -100, 100, 0),
+            self._slider('image_offset_y', 'Photo Y', -100, 100, 0),
         ]
         self.shadow_check = QCheckBox('Image shadow')
         self.shadow_check.stateChanged.connect(lambda _v: self.params_changed.emit())
@@ -150,7 +152,7 @@ class ControlsPanel(QWidget):
         layout.addWidget(self._section('Frame', border_widgets))
 
         text_widgets = [
-            self._slider('font_size', 'Text Size', 8, 48, 18),
+            self._slider('font_size', 'Text Size', 8, 48, 43),
             self._color_row('Text Color', 'fc_swatch', self._font_color, self._pick_font_color),
         ]
         self.bold_check = QCheckBox('Bold text')
@@ -161,7 +163,12 @@ class ControlsPanel(QWidget):
         ], label='Alignment'))
         layout.addWidget(self._section('Typography', text_widgets))
 
+        header_edit = QLineEdit()
+        header_edit.setPlaceholderText('CARTE POSTALE')
+        header_edit.textChanged.connect(lambda _v: self.params_changed.emit())
+        self.exif_fields['postcard_header'] = header_edit
         header_widgets = [
+            self._field('Header Text', header_edit),
             self._slider('postcard_header_size', 'Header Size', 8, 56, 18),
             self._color_row('Header Color', 'hc_swatch', self._header_color, self._pick_header_color),
         ]
@@ -169,7 +176,7 @@ class ControlsPanel(QWidget):
         self.header_bold_check.setChecked(True)
         self.header_bold_check.stateChanged.connect(lambda _v: self.params_changed.emit())
         header_widgets.append(self.header_bold_check)
-        layout.addWidget(self._section('Postcard Header', header_widgets))
+        layout.addWidget(self._section('Header Style', header_widgets))
 
         self.logo_check = QCheckBox('Show camera brand logo')
         self.logo_check.setChecked(True)
@@ -227,7 +234,7 @@ class ControlsPanel(QWidget):
         self._combo_export_resolution.currentIndexChanged.connect(
             lambda _idx: self._on_resolution())
 
-        self._combo_ratio.setCurrentIndex(2)
+        self._combo_ratio.setCurrentIndex(0)
         self._combo_preview_quality.setCurrentIndex(0)
         self._combo_export_resolution.setCurrentIndex(1)
 
@@ -357,7 +364,7 @@ class ControlsPanel(QWidget):
             self.params_changed.emit()
 
     def _pick_header_color(self):
-        c = QColorDialog.getColor(QColor(*self._header_color), self, 'Postcard Header Color')
+        c = QColorDialog.getColor(QColor(*self._header_color), self, 'Header Color')
         if c.isValid():
             self._header_color = (c.red(), c.green(), c.blue())
             self.hc_swatch.setStyleSheet(
@@ -416,7 +423,7 @@ class ControlsPanel(QWidget):
         return self.shadow_check.isChecked() if hasattr(self, 'shadow_check') else False
 
     def get_font_size(self) -> int:
-        return self._slider_val('font_size', 18)
+        return self._slider_val('font_size', 43)
 
     def get_font_bold(self) -> bool:
         return self.bold_check.isChecked() if hasattr(self, 'bold_check') else False
