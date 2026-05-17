@@ -17,7 +17,7 @@ from .base import (
 
 
 STAMP_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'stamps' / 'postcard_stamp.png'
-HEADER_FONT_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'fonts' / 'PlaywriteGBJGuides-Regular.ttf'
+HEADER_FONT_ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'fonts' / 'DancingScript-Regular.otf'
 
 
 class ContactSheetTemplate(BaseTemplate):
@@ -87,8 +87,10 @@ class ContactSheetTemplate(BaseTemplate):
         else:
             canvas.paste(img_resized, (img_x, img_y))
 
-        stamp_x = canvas_w - inset - stamp_w - max(10, canvas_w // 70)
-        stamp_y = max(inset + max(8, canvas_h // 90), img_y - int(stamp_h * 0.38))
+        stamp_x, stamp_y = self._postmark_position(
+            params.postmark_position, canvas_w, canvas_h, inset,
+            img_x, img_y, new_w, new_h, stamp_w, stamp_h,
+        )
         self._draw_postmark_asset(canvas, stamp_x, stamp_y, stamp_w, stamp_h)
         draw = ImageDraw.Draw(canvas)
 
@@ -148,7 +150,7 @@ class ContactSheetTemplate(BaseTemplate):
 
         address_x = img_x + int(new_w * 0.58)
         address_top = img_y + new_h + int(m_bottom * 0.16)
-        address_right = min(canvas_w - m_side, stamp_x + stamp_w)
+        address_right = min(canvas_w - m_side, img_x + new_w)
         for i in range(3):
             y = address_top + int((i + 1) * params.font_size * 1.65)
             if y < canvas_h - inset:
@@ -216,6 +218,45 @@ class ContactSheetTemplate(BaseTemplate):
         canvas.paste(stamp, (px, py), stamp)
         return True
 
+    def _postmark_position(
+        self,
+        position: str,
+        canvas_w: int,
+        canvas_h: int,
+        inset: int,
+        img_x: int,
+        img_y: int,
+        img_w: int,
+        img_h: int,
+        stamp_w: int,
+        stamp_h: int,
+    ) -> tuple[int, int]:
+        margin = max(10, canvas_w // 70)
+        overlap_x = int(stamp_w * 0.28)
+        overlap_y = int(stamp_h * 0.32)
+        positions = {
+            'top_left': (
+                img_x - overlap_x,
+                max(inset, img_y - overlap_y),
+            ),
+            'top_right': (
+                img_x + img_w - stamp_w + overlap_x,
+                max(inset, img_y - overlap_y),
+            ),
+            'bottom_left': (
+                img_x - overlap_x,
+                img_y + img_h - stamp_h + overlap_y,
+            ),
+            'bottom_right': (
+                img_x + img_w - stamp_w + overlap_x,
+                img_y + img_h - stamp_h + overlap_y,
+            ),
+        }
+        x, y = positions.get(position, positions['top_right'])
+        x = max(inset, min(x, canvas_w - inset - stamp_w - margin))
+        y = max(inset, min(y, canvas_h - inset - stamp_h - margin))
+        return x, y
+
     def _load_header_font(self, size: int):
         if HEADER_FONT_ASSET.exists():
             try:
@@ -237,20 +278,57 @@ class ContactSheetTemplate(BaseTemplate):
         max_width = max(1, int(max_width))
         for font_size in range(max(size, min_size), min_size - 1, -1):
             font = self._load_header_font(font_size)
-            bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
-            if bbox[2] - bbox[0] <= max_width:
-                return text, font
+            tracking = max(1, int(font_size * 0.10))
+            if self._tracked_text_width(draw, text, font, stroke_width, tracking) <= max_width:
+                return text, font, tracking
 
         font = self._load_header_font(min_size)
+        tracking = max(1, int(min_size * 0.10))
         ellipsis = '...'
         fitted = text
         while fitted:
             candidate = fitted.rstrip() + ellipsis
-            bbox = draw.textbbox((0, 0), candidate, font=font, stroke_width=stroke_width)
-            if bbox[2] - bbox[0] <= max_width:
-                return candidate, font
+            if self._tracked_text_width(draw, candidate, font, stroke_width, tracking) <= max_width:
+                return candidate, font, tracking
             fitted = fitted[:-1]
-        return ellipsis, font
+        return ellipsis, font, tracking
+
+    def _tracked_text_width(
+        self,
+        draw: ImageDraw.ImageDraw,
+        text: str,
+        font: ImageFont.FreeTypeFont,
+        stroke_width: int,
+        tracking: int,
+    ) -> int:
+        if not text:
+            return 0
+        width = 0
+        for index, char in enumerate(text):
+            bbox = draw.textbbox((0, 0), char, font=font, stroke_width=stroke_width)
+            width += bbox[2] - bbox[0]
+            if index < len(text) - 1:
+                width += tracking
+        return width
+
+    def _draw_tracked_text(
+        self,
+        draw: ImageDraw.ImageDraw,
+        xy: tuple[int, int],
+        text: str,
+        font: ImageFont.FreeTypeFont,
+        fill,
+        stroke_width: int,
+        tracking: int,
+    ):
+        x, y = xy
+        for char in text:
+            bbox = draw.textbbox((0, 0), char, font=font, stroke_width=stroke_width)
+            draw.text(
+                (x, y), char, fill=fill, font=font,
+                stroke_width=stroke_width, stroke_fill=fill,
+            )
+            x += bbox[2] - bbox[0] + tracking
 
     def _draw_postcard_header_text(
         self,
@@ -265,12 +343,12 @@ class ContactSheetTemplate(BaseTemplate):
         align: str = 'left',
         min_size: int = 8,
     ) -> int:
-        fitted, font = self._fit_header_text(draw, text, max_width, size, bold, min_size)
+        fitted, font, tracking = self._fit_header_text(draw, text, max_width, size, bold, min_size)
         if not fitted:
             return 0
         stroke_width = 1 if bold else 0
         bbox = draw.textbbox((0, 0), fitted, font=font, stroke_width=stroke_width)
-        text_w = bbox[2] - bbox[0]
+        text_w = self._tracked_text_width(draw, fitted, font, stroke_width, tracking)
         if align == 'center':
             tx = x + max(0, (max_width - text_w) // 2)
         elif align == 'right':
@@ -278,8 +356,7 @@ class ContactSheetTemplate(BaseTemplate):
         else:
             tx = x
         bbox = draw.textbbox((0, 0), fitted, font=font, stroke_width=stroke_width)
-        draw.text(
-            (tx, y - min(0, bbox[1])), fitted, fill=fill, font=font,
-            stroke_width=stroke_width, stroke_fill=fill,
+        self._draw_tracked_text(
+            draw, (tx, y - min(0, bbox[1])), fitted, font, fill, stroke_width, tracking,
         )
         return bbox[3] - bbox[1]

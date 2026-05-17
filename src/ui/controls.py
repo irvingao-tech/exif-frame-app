@@ -91,7 +91,7 @@ class ControlsPanel(QWidget):
         layout.setContentsMargins(10, 10, 10, 12)
         layout.setSpacing(8)
 
-        layout.addWidget(self._section('Template', [
+        self._section_template = self._section('Template', [
             self._batch_toggle(),
             self._combo('template', [
                 ('museum_white', 'Museum White'),
@@ -114,7 +114,8 @@ class ControlsPanel(QWidget):
                 ('quality', 'Quality'),
                 ('ultra', 'Ultra'),
             ], label='Preview Quality'),
-        ]))
+        ])
+        layout.addWidget(self._section_template)
 
         self.exif_fields = {}
         exif_widgets = []
@@ -134,7 +135,8 @@ class ControlsPanel(QWidget):
             edit.textChanged.connect(lambda _v: self.params_changed.emit())
             self.exif_fields[key] = edit
             exif_widgets.append(self._field(label, edit))
-        layout.addWidget(self._section('Metadata', exif_widgets))
+        self._section_metadata = self._section('Metadata', exif_widgets)
+        layout.addWidget(self._section_metadata)
 
         border_widgets = [
             self._color_row('Background', 'bg_swatch', self._bg_color, self._pick_bg),
@@ -149,7 +151,8 @@ class ControlsPanel(QWidget):
         self.shadow_check = QCheckBox('Image shadow')
         self.shadow_check.stateChanged.connect(lambda _v: self.params_changed.emit())
         border_widgets.append(self.shadow_check)
-        layout.addWidget(self._section('Frame', border_widgets))
+        self._section_frame = self._section('Frame', border_widgets)
+        layout.addWidget(self._section_frame)
 
         text_widgets = [
             self._slider('font_size', 'Text Size', 8, 48, 43),
@@ -161,7 +164,8 @@ class ControlsPanel(QWidget):
         text_widgets.append(self._combo('text_align', [
             ('left', 'Left'), ('center', 'Center'), ('right', 'Right'),
         ], label='Alignment'))
-        layout.addWidget(self._section('Typography', text_widgets))
+        self._section_typography = self._section('Typography', text_widgets)
+        layout.addWidget(self._section_typography)
 
         header_edit = QLineEdit()
         header_edit.setPlaceholderText('CARTE POSTALE')
@@ -171,12 +175,19 @@ class ControlsPanel(QWidget):
             self._field('Header Text', header_edit),
             self._slider('postcard_header_size', 'Header Size', 8, 56, 18),
             self._color_row('Header Color', 'hc_swatch', self._header_color, self._pick_header_color),
+            self._combo('postmark_position', [
+                ('top_right', 'Postmark Top Right'),
+                ('top_left', 'Postmark Top Left'),
+                ('bottom_right', 'Postmark Bottom Right'),
+                ('bottom_left', 'Postmark Bottom Left'),
+            ], label='Postmark'),
         ]
         self.header_bold_check = QCheckBox('Bold header')
         self.header_bold_check.setChecked(True)
         self.header_bold_check.stateChanged.connect(lambda _v: self.params_changed.emit())
         header_widgets.append(self.header_bold_check)
-        layout.addWidget(self._section('Header Style', header_widgets))
+        self._section_header_style = self._section('Header Style', header_widgets)
+        layout.addWidget(self._section_header_style)
 
         self.logo_check = QCheckBox('Show camera brand logo')
         self.logo_check.setChecked(True)
@@ -186,7 +197,7 @@ class ControlsPanel(QWidget):
         self.qr_check.setChecked(True)
         self.qr_check.stateChanged.connect(lambda _v: self.params_changed.emit())
 
-        layout.addWidget(self._section('Logo & Map', [
+        self._section_logo_map = self._section('Logo & Map', [
             self.logo_check,
             self._slider('logo_size', 'Logo Size', 40, 180, 90),
             self._combo('logo_position', [
@@ -203,9 +214,10 @@ class ControlsPanel(QWidget):
                 ('apple', 'Apple Maps'), ('google', 'Google Maps'),
                 ('geo', 'Universal geo link'),
             ], label='Map Link'),
-        ]))
+        ])
+        layout.addWidget(self._section_logo_map)
 
-        layout.addWidget(self._section('Export', [
+        self._section_export = self._section('Export', [
             self._combo('export_format', [
                 ('JPEG', 'JPG'), ('PNG', 'PNG'),
             ], label='Format'),
@@ -215,7 +227,8 @@ class ControlsPanel(QWidget):
                 ('3000', '3000px long edge'),
                 ('0', 'Original size'),
             ], label='Resolution'),
-        ]))
+        ])
+        layout.addWidget(self._section_export)
         layout.addStretch()
 
         scroll.setWidget(content)
@@ -225,9 +238,11 @@ class ControlsPanel(QWidget):
         main_layout.addWidget(scroll)
 
         for name in ['template', 'ratio', 'preview_quality', 'text_align',
-                     'logo_position', 'qr_position', 'map_provider']:
+                     'logo_position', 'qr_position', 'map_provider', 'postmark_position']:
             getattr(self, f'_combo_{name}').currentTextChanged.connect(
                 lambda _v: self.params_changed.emit())
+        self._combo_template.currentTextChanged.connect(
+            lambda _v: self._apply_template_visibility())
 
         self._combo_export_format.currentIndexChanged.connect(
             lambda _idx: self.export_format_changed.emit(self._combo_val('export_format')))
@@ -237,6 +252,7 @@ class ControlsPanel(QWidget):
         self._combo_ratio.setCurrentIndex(0)
         self._combo_preview_quality.setCurrentIndex(0)
         self._combo_export_resolution.setCurrentIndex(1)
+        self._apply_template_visibility()
 
     def _batch_toggle(self) -> QWidget:
         self.batch_check = QCheckBox('Batch edit mode')
@@ -294,6 +310,9 @@ class ControlsPanel(QWidget):
             cb.addItem(disp, val)
         lay.addWidget(cb)
         setattr(self, f'_combo_{name}', cb)
+        if not hasattr(self, '_control_widgets'):
+            self._control_widgets = {}
+        self._control_widgets[name] = row
         return row
 
     def _slider(self, name: str, label: str, mn: int, mx: int, dv: int) -> QWidget:
@@ -325,9 +344,24 @@ class ControlsPanel(QWidget):
         if not hasattr(self, '_sliders'):
             self._sliders = {}
             self._slider_value_labels = {}
+        if not hasattr(self, '_control_widgets'):
+            self._control_widgets = {}
         self._sliders[name] = slider
         self._slider_value_labels[name] = val
+        self._control_widgets[name] = box
         return box
+
+    def _apply_template_visibility(self):
+        template = self.get_template_key()
+        is_postcard = template == 'contact_sheet'
+        is_film = template == 'color_reversal_film'
+
+        self._section_header_style.setVisible(is_postcard)
+
+        for name in ['image_zoom', 'image_offset_x', 'image_offset_y']:
+            widget = getattr(self, '_control_widgets', {}).get(name)
+            if widget is not None:
+                widget.setVisible(is_film)
 
     def _color_row(self, label: str, attr: str, color: tuple[int, int, int], slot) -> QWidget:
         row = QWidget()
@@ -440,6 +474,9 @@ class ControlsPanel(QWidget):
     def get_postcard_header_bold(self) -> bool:
         return self.header_bold_check.isChecked() if hasattr(self, 'header_bold_check') else True
 
+    def get_postmark_position(self) -> str:
+        return self._combo_val('postmark_position') or 'top_right'
+
     def get_logo_enabled(self) -> bool:
         return self.logo_check.isChecked() if hasattr(self, 'logo_check') else True
 
@@ -492,6 +529,7 @@ class ControlsPanel(QWidget):
             'shadow': self.get_shadow(),
             'bold': self.get_font_bold(),
             'header_bold': self.get_postcard_header_bold(),
+            'postmark_position': self.get_postmark_position(),
             'text_align': self._combo_val('text_align'),
             'logo_enabled': self.get_logo_enabled(),
             'logo_position': self._combo_val('logo_position'),
@@ -505,7 +543,10 @@ class ControlsPanel(QWidget):
             return
         widgets = [
             getattr(self, f'_combo_{name}', None)
-            for name in ['template', 'ratio', 'text_align', 'logo_position', 'qr_position', 'map_provider']
+            for name in [
+                'template', 'ratio', 'text_align', 'logo_position',
+                'qr_position', 'map_provider', 'postmark_position',
+            ]
         ]
         widgets += list(getattr(self, '_sliders', {}).values())
         widgets += [
@@ -521,6 +562,7 @@ class ControlsPanel(QWidget):
             self._set_combo_val('logo_position', state.get('logo_position'))
             self._set_combo_val('qr_position', state.get('qr_position'))
             self._set_combo_val('map_provider', state.get('map_provider'))
+            self._set_combo_val('postmark_position', state.get('postmark_position'))
             self._bg_color = tuple(state.get('bg_color', self._bg_color))
             self._font_color = tuple(state.get('font_color', self._font_color))
             self._header_color = tuple(state.get('header_color', self._header_color))
@@ -545,6 +587,7 @@ class ControlsPanel(QWidget):
         finally:
             for widget in [w for w in widgets if w is not None]:
                 widget.blockSignals(False)
+        self._apply_template_visibility()
 
     def get_metadata_state(self) -> dict:
         return {key: edit.text() for key, edit in self.exif_fields.items()}

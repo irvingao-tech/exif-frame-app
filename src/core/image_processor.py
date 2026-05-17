@@ -201,6 +201,7 @@ def process_preview(
         postcard_header_size=params.postcard_header_size,
         postcard_header_color=params.postcard_header_color,
         postcard_header_bold=params.postcard_header_bold,
+        postmark_position=params.postmark_position,
     )
     
     result = process_image(

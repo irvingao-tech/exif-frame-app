@@ -64,6 +64,7 @@ class RenderParams:
     postcard_header_size: int = 18
     postcard_header_color: Tuple[int, int, int] = (74, 58, 42)
     postcard_header_bold: bool = True
+    postmark_position: str = 'top_right'
 
 
 @dataclass
