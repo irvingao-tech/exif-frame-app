@@ -28,6 +28,7 @@ The app reads photo metadata, renders a selected visual template, and exports a 
 | Minimal Border | Clean social-post frame with compact metadata. |
 | Vintage Postcard | Warm postcard paper, Dancing Script header text, movable postmark, address lines, logo, and map QR. |
 | Color Reversal Film | Medium-format 120 reversal film border with subtle black frame texture and bright yellow EXIF markings. |
+| Full Width Info Bar | Full-width photo with a clean bottom strip for camera, brand, exposure, and date. |
 
 ## Controls
 

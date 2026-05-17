@@ -100,6 +100,7 @@ class ControlsPanel(QWidget):
                 ('minimal_border', 'Minimal Border'),
                 ('contact_sheet', 'Vintage Postcard'),
                 ('color_reversal_film', 'Color Reversal Film'),
+                ('full_width_info_bar', 'Full Width Info Bar'),
             ], label='Style'),
             self._combo('ratio', [
                 ('Original', 'Original'), ('1:1', 'Square 1:1'),
@@ -355,13 +356,17 @@ class ControlsPanel(QWidget):
         template = self.get_template_key()
         is_postcard = template == 'contact_sheet'
         is_film = template == 'color_reversal_film'
+        is_full_width = template == 'full_width_info_bar'
 
         self._section_header_style.setVisible(is_postcard)
 
-        for name in ['image_zoom', 'image_offset_x', 'image_offset_y']:
+        for name in ['image_zoom', 'image_offset_x']:
             widget = getattr(self, '_control_widgets', {}).get(name)
             if widget is not None:
                 widget.setVisible(is_film)
+        widget = getattr(self, '_control_widgets', {}).get('image_offset_y')
+        if widget is not None:
+            widget.setVisible(is_film or is_full_width)
 
     def _color_row(self, label: str, attr: str, color: tuple[int, int, int], slot) -> QWidget:
         row = QWidget()

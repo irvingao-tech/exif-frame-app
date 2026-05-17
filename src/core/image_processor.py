@@ -16,6 +16,7 @@ from src.templates.offwhite_archive import OffWhiteArchiveTemplate
 from src.templates.minimal_border import MinimalBorderTemplate
 from src.templates.contact_sheet import ContactSheetTemplate
 from src.templates.color_reversal_film import ColorReversalFilmTemplate
+from src.templates.full_width_info_bar import FullWidthInfoBarTemplate
 
 logger = logging.getLogger(__name__)
 PREVIEW_LAYOUT_LONG_EDGE = 2048
@@ -28,6 +29,7 @@ TEMPLATES = {
     'minimal_border': MinimalBorderTemplate(),
     'contact_sheet': ContactSheetTemplate(),
     'color_reversal_film': ColorReversalFilmTemplate(),
+    'full_width_info_bar': FullWidthInfoBarTemplate(),
 }
 
 # Aspect ratio presets

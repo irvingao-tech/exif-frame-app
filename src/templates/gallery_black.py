@@ -9,7 +9,7 @@ from .base import (
     BaseTemplate, RenderParams, ExifSource,
     get_merged_exif, calculate_canvas,
     draw_rounded_rect, draw_shadow, load_font, minimum_safe_margins,
-    template_colors, mix_color,
+    mix_color,
 )
 
 
@@ -24,7 +24,8 @@ class GalleryBlackTemplate(BaseTemplate):
             image.width, image.height, params.ratio, params.target_long_edge
         )
         
-        bg_color, font_color = template_colors(params, (6, 7, 9), (226, 226, 220))
+        bg_color = (0, 0, 0)
+        font_color = (255, 255, 255)
         
         m_top = int(max(params.margin_top, 90) * canvas_h / 2048)
         m_side = int(max(params.margin_side, 90) * canvas_w / 2048)
