@@ -168,14 +168,7 @@ class ControlsPanel(QWidget):
         self._section_typography = self._section('Typography', text_widgets)
         layout.addWidget(self._section_typography)
 
-        header_edit = QLineEdit()
-        header_edit.setPlaceholderText('CARTE POSTALE')
-        header_edit.textChanged.connect(lambda _v: self.params_changed.emit())
-        self.exif_fields['postcard_header'] = header_edit
         header_widgets = [
-            self._field('Header Text', header_edit),
-            self._slider('postcard_header_size', 'Header Size', 8, 56, 18),
-            self._color_row('Header Color', 'hc_swatch', self._header_color, self._pick_header_color),
             self._combo('postmark_position', [
                 ('top_right', 'Postmark Top Right'),
                 ('top_left', 'Postmark Top Left'),
@@ -183,11 +176,7 @@ class ControlsPanel(QWidget):
                 ('bottom_left', 'Postmark Bottom Left'),
             ], label='Postmark'),
         ]
-        self.header_bold_check = QCheckBox('Bold header')
-        self.header_bold_check.setChecked(True)
-        self.header_bold_check.stateChanged.connect(lambda _v: self.params_changed.emit())
-        header_widgets.append(self.header_bold_check)
-        self._section_header_style = self._section('Header Style', header_widgets)
+        self._section_header_style = self._section('Postcard', header_widgets)
         layout.addWidget(self._section_header_style)
 
         self.logo_check = QCheckBox('Show camera brand logo')
@@ -406,8 +395,9 @@ class ControlsPanel(QWidget):
         c = QColorDialog.getColor(QColor(*self._header_color), self, 'Header Color')
         if c.isValid():
             self._header_color = (c.red(), c.green(), c.blue())
-            self.hc_swatch.setStyleSheet(
-                f'QPushButton#ColorSwatch {{ background-color: rgb{self._header_color}; }}')
+            if hasattr(self, 'hc_swatch'):
+                self.hc_swatch.setStyleSheet(
+                    f'QPushButton#ColorSwatch {{ background-color: rgb{self._header_color}; }}')
             self.params_changed.emit()
 
     def _on_resolution(self):
@@ -555,7 +545,7 @@ class ControlsPanel(QWidget):
         ]
         widgets += list(getattr(self, '_sliders', {}).values())
         widgets += [
-            self.shadow_check, self.bold_check, self.header_bold_check,
+            self.shadow_check, self.bold_check, getattr(self, 'header_bold_check', None),
             self.logo_check, self.qr_check,
         ]
         for widget in [w for w in widgets if w is not None]:
@@ -575,8 +565,9 @@ class ControlsPanel(QWidget):
                 f'QPushButton#ColorSwatch {{ background-color: rgb{self._bg_color}; }}')
             self.fc_swatch.setStyleSheet(
                 f'QPushButton#ColorSwatch {{ background-color: rgb{self._font_color}; }}')
-            self.hc_swatch.setStyleSheet(
-                f'QPushButton#ColorSwatch {{ background-color: rgb{self._header_color}; }}')
+            if hasattr(self, 'hc_swatch'):
+                self.hc_swatch.setStyleSheet(
+                    f'QPushButton#ColorSwatch {{ background-color: rgb{self._header_color}; }}')
             for name, value in state.get('margins', {}).items():
                 slider = getattr(self, '_sliders', {}).get(name)
                 if slider is not None:
@@ -586,7 +577,8 @@ class ControlsPanel(QWidget):
                     value_label.setText(str(int(value)))
             self.shadow_check.setChecked(bool(state.get('shadow', False)))
             self.bold_check.setChecked(bool(state.get('bold', False)))
-            self.header_bold_check.setChecked(bool(state.get('header_bold', True)))
+            if hasattr(self, 'header_bold_check'):
+                self.header_bold_check.setChecked(bool(state.get('header_bold', True)))
             self.logo_check.setChecked(bool(state.get('logo_enabled', True)))
             self.qr_check.setChecked(bool(state.get('qr_enabled', True)))
         finally:

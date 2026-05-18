@@ -26,7 +26,7 @@ The app reads photo metadata, renders a selected visual template, and exports a 
 | Gallery Black | Dark gallery wall look with quiet light typography. |
 | Off-white Archive | Archival paper style with title, location, date, and EXIF details. |
 | Minimal Border | Clean social-post frame with compact metadata. |
-| Vintage Postcard | Warm postcard paper, Dancing Script header text, movable postmark, address lines, logo, and map QR. |
+| Vintage Postcard | Warm postcard paper, movable postmark, address lines, logo, and map QR. |
 | Color Reversal Film | Medium-format 120 reversal film border with subtle black frame texture and bright yellow EXIF markings. |
 | Full Width Info Bar | Full-width photo with a clean bottom strip for camera, brand, exposure, and date. |
 
@@ -36,7 +36,7 @@ The app reads photo metadata, renders a selected visual template, and exports a 
 - `Metadata`: edit the text that appears on the rendered card.
 - `Frame`: background, margins, radius, and image shadow.
 - `Typography`: text size, color, weight, and alignment.
-- `Header Style`: only appears for Vintage Postcard; controls header text, Dancing Script header size/color, bold style, and postmark position.
+- `Postcard`: only appears for Vintage Postcard; controls the postmark position.
 - `Photo Zoom / Photo X / Photo Y`: only appears for Color Reversal Film; controls crop and composition inside the film window.
 - `Logo & Map`: controls camera logo and GPS QR placement.
 - `Export`: controls output format and resolution.

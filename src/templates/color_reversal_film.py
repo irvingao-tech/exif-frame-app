@@ -21,12 +21,13 @@ class ColorReversalFilmTemplate(BaseTemplate):
             image.width, image.height, params.ratio, params.target_long_edge
         )
 
-        bg_color, _font_color = template_colors(params, (246, 245, 242), (218, 166, 42))
-        film_color = (17, 17, 16)
-        film_edge = (64, 58, 50)
+        bg_color, _font_color = template_colors(params, (54, 54, 52), (218, 166, 42))
+        film_alpha = int(255 * 0.50)
+        film_color = (17, 17, 16, film_alpha)
+        film_edge = (64, 58, 50, film_alpha)
         mark_color = (255, 210, 56)
 
-        canvas = Image.new('RGB', (canvas_w, canvas_h), bg_color)
+        canvas = Image.new('RGBA', (canvas_w, canvas_h), (*bg_color, 255))
         draw = ImageDraw.Draw(canvas)
 
         outer_pad = max(10, int(min(canvas_w, canvas_h) * 0.035))
@@ -53,9 +54,7 @@ class ColorReversalFilmTemplate(BaseTemplate):
         radius = max(10, int(min(canvas_w, canvas_h) * 0.016))
 
         if params.image_shadow:
-            canvas_rgba = canvas.convert('RGBA')
-            canvas_rgba = draw_shadow(canvas_rgba, aperture, radius, alpha=28)
-            canvas = canvas_rgba.convert('RGB')
+            canvas = draw_shadow(canvas, aperture, radius, alpha=28)
             draw = ImageDraw.Draw(canvas)
 
         area_w = max(1, aperture[2] - aperture[0])
@@ -83,7 +82,7 @@ class ColorReversalFilmTemplate(BaseTemplate):
         self._draw_side_notches(draw, aperture, film_color, film_edge, canvas_w)
         self._draw_corner_wear(draw, film_box, canvas_w, canvas_h, film_edge)
         self._draw_film_markings(draw, film_box, canvas_w, canvas_h, band_h, merged, mark_color)
-        return canvas
+        return canvas.convert('RGB')
 
     def _draw_film_texture(self, canvas: Image.Image, film_box, edge_color):
         rng = random.Random(120)
@@ -103,7 +102,7 @@ class ColorReversalFilmTemplate(BaseTemplate):
             alpha = rng.randint(16, 34)
             od.line(
                 (x, y, min(x2, x + length), min(y2, y + rng.randint(-4, 5))),
-                fill=(*edge_color, alpha),
+                fill=(*edge_color[:3], min(edge_color[3], alpha)),
                 width=1,
             )
         overlay = overlay.filter(ImageFilter.GaussianBlur(0.25))
