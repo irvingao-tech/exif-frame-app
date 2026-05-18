@@ -3,6 +3,8 @@
 A lightweight desktop app for turning photos into styled EXIF frame cards.
 
 The app reads photo metadata, renders a selected visual template, and exports a finished JPG or PNG. It is designed for local photo testing and small batch workflows.
+<img width="2048" height="1152" alt="DSC00315_framed" src="https://github.com/user-attachments/assets/46ccd1b1-11d1-4abe-bbb3-40e708e14ff4" />
+
 
 ## Features
 
